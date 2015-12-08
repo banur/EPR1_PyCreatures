@@ -1,195 +1,241 @@
+""" PyCreatures
+
+TODO:
+birth on corn space
+check eat next to corn
+input: help, quit, insert, ...
+
 """
-PyCreatures
-blah
-"""
+
+from random import choice
 
 
 class World():
 
-    """ World class """
+    """  """
 
-    __turn = 0
-    __world_map = []  # mouse1, None, corn : M.Y
-    __world_ref = {}  # (x,y): mouse1, (x,y): corn1
-    __scheduled_actions = []
-    __empty_symbol = "."
-    __rules = {}
-    __world_size = [0, 0]
+    world_map = []
+    world_ref = {}
+    world_size = []
+    empty_symbol = "."
+    scheduled_actions = []
 
-    def __init__(self):
-        """ Setup the world. """
-        self.__create_world()
-        self.__populate_world()
-        self.__print_world()
-        self.__start_sim()
+    def __init__(self, size_x=79, size_y=29):
+        """  """
+        input("Change boardsize? ")
+        self.world_size = [size_x, size_y]
+        self.insert_new((10, 5), Mouse)
+        self.insert_new((15, 11), Corn)
+        self.insert_new((16, 10), Mouse)
+        self.insert_new((10, 7), Corn)
+        self.build_world()
+        self.start_sim()
 
-    def __create_world(self):
-        self.__world_size[0] = 20  # int(input("width: "))
-        self.__world_size[1] = 10  # int(input("height: "))
-
-    def __start_sim(self):
+    def start_sim(self):
+        """  """
         while True:
-            player_input = input("action: ")
-            if player_input.isdigit():
-                for i in player_input:
-                    self.__compute_life_cycle()
-            elif player_input == "insert":
-                position = [0, 0]
-                # element_input = input("thing ")
-                # if element_input == "thing":
-                element_input = Thing()
-                position[0] = 15  # input("pos_x ")
-                position[1] = 0  # input("pos_y ")
-                position_t = tuple(position)
-                self.insert_new(position_t, element_input)
-            else:
-                self.__compute_life_cycle()
-            self.__populate_world()
-            self.__print_world()
-
-    def __compute_life_cycle(self):
-        self.__scheduled_actions = []
-        for position in self.__world_ref:
-            element = self.__world_ref[position]
-            pos_x, pos_y = position[0], position[1]  # refine
-            self.__scheduled_actions.append(element.perform_action)
-        for action in self.__scheduled_actions:
-            # check consistency(action)
-            action(15, 0)  # (pos_x, pos_y)
-
-    def get_rules(self, position_self, surroundings):
-        """ todo """
-        self_type = self.__world_ref[position_self]
-        for direction in surroundings:
-            positions = tuple(position_self + direction)
-            try:
-                class_type = self.__world_ref[positions].__class__.__name__
-            except KeyError:
-                pass
+            input("next..")
+            self.compute_life_cycle()
+            self.build_world()
 
     def insert_new(self, position, element):
-        self.__world_ref = {position: element}
+        """ Insert new object of type 'element' on 'position' to reference. """
+        self.world_ref[position] = element()
+        self.world_ref[position].world = self
 
     def delete(self, position):
-        del self.__world_ref[position]
-
-    def get_position(self, position):
-        element = None
+        """ Delete the object on that position from the reference. """
         try:
-            element = self.__world_ref[position]
+            self.world_ref.pop(position)
         except KeyError:
             pass
-        return element
 
-    def __populate_world(self):
-        self.__world_map = []
-        for size_y in range(self.__world_size[1]):
-            self.__world_map.append([])
-            for size_x in range(self.__world_size[0]):
-                self.__world_map[-1] += self.__empty_symbol
-        for position in self.__world_ref:
+    def build_world(self):
+        """ Build empty world, insert all elements, call print world. """
+        self.world_map = []
+        for size_y in range(self.world_size[1]):
+            self.world_map.append([])
+            for size_x in range(self.world_size[0]):
+                self.world_map[-1] += self.empty_symbol
+        for position in self.world_ref:
             pos_x = position[0]
             pos_y = position[1]
-            symbol = self.__world_ref[position].get_symbol()
-            self.__world_map[pos_y][pos_x] = symbol
+            symbol = self.world_ref[position].get_symbol()
+            self.world_map[pos_y][pos_x] = symbol
+        self.print_world()
 
-    def __print_world(self):
+    def fix_pos(self, position):
+        """ Make the world round. """
+        fixed_x = position[0] % self.world_size[0]
+        fixed_y = position[1] % self.world_size[1]
+        return (fixed_x, fixed_y)
+
+    def print_world(self):
+        """ Output the world to console. """
         line = ""
-        for row in self.__world_map:
+        for row in self.world_map:
             for element in row:
                 line += element
             line += "\n"
         print(line, end="")
 
+    def compute_life_cycle(self):
+        """  """
+        self.scheduled_actions = []
+        for position in self.world_ref:
+            element = self.world_ref[position]
+            pos_x, pos_y = position[0], position[1]
+            self.scheduled_actions.append(element.perform_action(pos_x, pos_y))
+        self.run_actions()
+
+    def run_actions(self):
+        """ Check consistency and run actions. """
+        for action in self.scheduled_actions:
+            try:
+                if action[0] == "delete":
+                    self.delete(self.fix_pos(action[1]))
+                elif action[0] == "insert":
+                    self.insert_new(self.fix_pos(action[1]), action[2])
+                elif action[0] == "move":
+                    fixed_pos = ()
+                    fixed_pos = self.fix_pos(action[2])
+                    self.world_ref[fixed_pos] = self.world_ref.pop(action[1])
+            except TypeError:
+                pass
+
+    def check_surroundings(self, pos_x, pos_y, surroundings):
+        """ Return object type of position, None if empty. """
+        objects = [[], {}]
+        position = ()
+        for direction in surroundings:
+            pos_x += direction[0]
+            pos_y += direction[1]
+            position = self.fix_pos((pos_x, pos_y))
+            if position in self.world_ref:
+                objects[1][
+                    self.world_ref[position].__class__.__name__] = position
+            else:
+                objects[0].append(direction)
+        return objects[0], objects[1]
+
 
 class Thing():
 
-    """Thing class"""
+    """  """
+    symbol = "t"
+    age = 0
+    surroundings = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+    empty_surrounding = []
+    surrounding_obj = {}
+    world = None
 
-    __age = 0
-    __symbol = "t"
-    # right, left, up, down
-    __surroundings = [[1, 0], [-1, 0], [0, 1], [-1, 0]]
-
-    def perform_action(self, pos_x, pos_y):
-        print("nada")
-
-    def __check_surroundings(self, pos_x, pos_y):
-        """ Check for free space. Return as list. """
-        free_space = []
-        for position in self.__surroundings:
-            surrounding_position = [pos_x, pos_y] + position
-            # nope
-            if World.get_pos(surrounding_position) == self.__empty_smybol:
-                free_space = surrounding_position
-        return free_space
+    def perform_action(self):
+        """  """
+        pass
 
     def get_symbol(self):
-        return self.__symbol
+        """ Return the objects world representation. """
+        return self.symbol
+
+    def get_surroundings(self, pos_x, pos_y):
+        """ Fetch surrounding objects. """
+        self.empty_surrounding, self.surrounding_obj = \
+            self.world.check_surroundings(pos_x, pos_y, self.surroundings)
 
 
 class Plant(Thing):
 
-    """ Plant class """
-
-    __seed_cycle = None
-    # __surroundings.extend([2, 0], [-2, 0], [0, 2], [-2, 0])
+    """ Plant class. """
+    seed_cycle = None
 
     def perform_action(self, pos_x, pos_y):
-        if self.__age % self.__seed_cycle == 0:
-            self.__grow(pos_x, pos_y)
+        """ Check action conditions. """
+        self.age += 1
+        if self.age % self.seed_cycle == 0:
+            self.get_surroundings(pos_x, pos_y)
+            return self.grow(pos_x, pos_y)
 
-    def __grow(self, pos_x, pos_y):
-        area = self.__check_surroundings(pos_x, pos_y)
-        if area:
-            free_space = self.__world_ref(self) + random.choice(area)
-            new_plant = Plant()  # not correct
-            self.__insert_new(new_plant, position)
+    def grow(self, pos_x, pos_y):
+        """ Insert a new object. """
+        if self.empty_surrounding:
+            direction = choice(self.empty_surrounding)
+            new_pos_x = pos_x + direction[0]
+            new_pos_y = pos_y + direction[1]
+            insert_position = (new_pos_x, new_pos_y)
+            return ("insert", insert_position, self.__class__)
 
 
 class Creature(Thing):
 
-    """ Creature class """
-
-    __offspring_cycle = None
-    __max_starving = None
-    __starving = None
-    __max_age = None
-    __age = None
+    """ Creature class. """
+    offspring_cycle = None
+    starving = 0
+    max_starving = 0
+    max_age = 0
+    edible = []
 
     def perform_action(self, pos_x, pos_y):
-        starving = self.__starving >= self.__max_starving
-        dying = self.__age >= self.__max_age
+        """ Check action conditions. """
+        self.age += 1
+        self.starving += 1
+        starving = self.starving >= self.max_starving
+        dying = self.age >= self.max_age
+        self.get_surroundings(pos_x, pos_y)
         if dying or starving:
-            self.__die(pos_x, pos_y)
-        elif self.__age % self.__offspring_cycle == 0:
-            self.__grow(pos_x, pos_y)
-        else:
-            self.__move(pos_x, pos_y)
+            return self.die(pos_x, pos_y)
+        elif self.age % self.offspring_cycle == 0:
+            return self.grow(pos_x, pos_y)
+        for food in self.edible:
+            if food in self.surrounding_obj:
+                return self.eat(pos_x, pos_y)
+        return self.move(pos_x, pos_y)
 
-    def __die(self, pos_x, pos_y):
-        pass
+    def die(self, pos_x, pos_y):
+        """ Delete the object. """
+        return ("delete", (pos_x, pos_y))
 
-    def __grow(self, pos_x, pos_y):
-        pass
+    def grow(self, pos_x, pos_y):
+        """ Insert a new object. """
+        if self.empty_surrounding:
+            direction = choice(self.empty_surrounding)
+            new_pos_x = pos_x + direction[0]
+            new_pos_y = pos_y + direction[1]
+            insert_position = (new_pos_x, new_pos_y)
+            return ("insert", insert_position, self.__class__)
 
-    def __move(self, pos_x, pos_y):
-        pass
+    def eat(self, pos_x, pos_y):
+        """ Feast upon food. """
+        for food in self.edible:
+            food_choice = []
+            if food in self.surrounding_obj:
+                food_choice.append(self.surrounding_obj[food])
+            position = choice(food_choice)
+            return("delete", (position[0], position[1]))
+
+    def move(self, pos_x, pos_y):
+        """ Relocate the object. """
+        if self.empty_surrounding:
+            direction = choice(self.empty_surrounding)
+            new_pos_x = pos_x + direction[0]
+            new_pos_y = pos_y + direction[1]
+            new_position = (new_pos_x, new_pos_y)
+            return ("move", (pos_x, pos_y), new_position)
 
 
 class Corn(Plant):
 
-    """ Corn class """
-
-    __seed_cycle = 6
-    __symbol = "§"
+    """  """
+    symbol = "§"
+    seed_cycle = 6
 
 
 class Mouse(Creature):
 
-    """ Mouse class """
-
-    __offspring_cycle = 12
-    __symbol = "M"
+    """  """
+    symbol = "M"
+    offspring_cycle = 2
+    max_starving = 15
+    max_age = 5
+    edible = ["Corn"]
 
 new_sim = World()
